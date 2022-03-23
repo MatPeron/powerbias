@@ -1,0 +1,256 @@
+DOCUMENTATION
+
+
+TO BE IMPLEMENTED: bias module
+
+The program requires python3 and the following packages:
+
+numpy
+scipy
+mpi4py
+tqdm
+yaml
+
+# run.py
+
+TO BE IMPLEMENTED: bias wrapper (currently only power spectrum is available) 
+
+Convenient command line parser for power spectrum and bias computation.
+
+The command line syntax is:
+
+  [mpirun] python3 run.py /path/to/init_file {do_pk [--do-bias] /path/to/sim_file, load /path/to/pk_file}
+  
+  - /path/to/init_file: path to an initialization file containing all the parameters to be used in the power spectrum/bias computation. This initialization file should always be a .yaml file. To see an example of what parameters can be used and how the file is structured, take a look at example/example.yaml.
+  
+  - do_pk: subcommand to be used to compute the power spectrum of a simulated catalog of particles.
+  
+    - /path/to/sim_file: path to the simulation file containing the particles' data.
+    - --do-bias: specify to also compute the power spectrum bias (OPTIONAL).
+  
+  - load: subcommand to be used to computed the bias of an already computed power spectrum.
+  
+    - /path/to/pk_file: path to the file containing the power spectrum.
+    
+When ran using mpirun, the power spectrum is computed using MPI parallelization (highly suggested for large datasets). If mpirun is not used, the program falls back to the multiprocessing python package for parallelization (may not work for large datasets).
+
+# ps.py
+
+TO BE IMPLEMENTED: FKPPowerSpectrum class
+
+Main module for power spectrum computation. Defines the object PowerSpectrum, that standardizes all power spectrum operations.
+
+class PowerSpectrum(L, Ng, read_sim_func, filename, read_sim_args, use_mpi, nproc, **kwargs)
+
+  TO BE IMPLEMENTED: function to optimize multiprocessing chunksize given memory and bandwidth, support for mass assignment schemes of order 3 and 4, support for interlacing
+
+  - L: float, length of side the simulation box. This quantity sets the units for all other quantities.
+  - Ng: int, number of grid points per side. Used to subdivide the simulation box to a regular grid of Ng^3 cells to interpolate the density delta(x) and perform FFT.
+  - read_sim_func: function, function to be used to extract the positions of the particles from filename. Note the following rules when defining this function:
+    - must accept filename as first positional argument
+    - can accept any other argument beside the file name, such arguments must be specified using read_sim_args
+    - readSim must return a (N,3) numpy array of particle positions (x,y,z coordinates of N particles)
+    NOTE: Mass binning (for halo power spectra for example), or any other binning based on source properties should be done within the function.
+  - filename: str, path of the simulation file to be read by read_sim_func.
+  - read_sim_args: dict, dictionary containing extra arguments for read_sim_func.
+  - use_mpi: bool, default: False, if True MPI is used to perform power spectrum computation (strongly suggested for auto power spectra of large datasets). if False, falls back to multiprocessing python package.
+    NOTE: in order to use MPI, openMP must be installed and the main python executable should be ran with mpiexec
+  - nproc: int, default: -1, number of processors to be used. If -1, uses all processors available.
+  
+  Other arguments (should not be assigned):
+  - H: float, grid spacing (computed as L/Ng).
+  - Np: int, number of particles (computed as len(read_sim_func(filename, **read_sim_args))).
+  - kf: float, fundamental Fourier mode (computed as 2*pi/L).
+  - ks: float, sampling mode (computed as 2*pi/H).
+  - kNyq: float, Nyquist mode (computed as pi/H).
+  - MAS_order: int, default: 2, mass assignment scheme order.
+  - is_intrl: bool, default: False, interlacing flag.
+  - is_cross: bool, default: False, cross power spectrum flag.
+  - is_avrg: bool, default: False, average power spectrum flag.
+  - knorms: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the norm of the Fourier modes of each grid cell.
+  - deltak: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of the density in each grid cell.
+  - k: numpy.ndarray, array containing the norm of the Fourier modes of the computed power spectrum P(k).
+  - Pk: numpy.ndarray, array containing the power spectrum values P(k) (not corrected by shot noise).
+  - sigmaPk: numpy.ndarray, array containig the error on each power spectrim value.
+  - shotnoise: float, shot noise to be subtracted to P(k).
+  
+  method _multiprocImports()
+
+    Function to be used to import the relevant packages for multiprocessing.
+    
+  method _computeChunkSize(size, factor)
+  
+    Function that returns the optimal chunksize for multiprocessing parallelization (see multiprocessing.imap).
+    
+    - size: int, size of the input iterable to be processed
+    - factor: int, default=4, a multiplicative factor. Inversely proportional to the chunk size
+    
+    returns:
+    - chunksize: int, number of input items to be processed in a single chunk before returning the result.
+    
+  method showParameters()
+  
+    Function that prints a list of all the parameters of PowerSpectrum and their values.
+    
+  method save(filename, save_deltak)
+  
+    Function that pickles and saves current instance of PowerSpectrum.
+    
+    - filename: str, filename for the output. If filename does not end in ".pkl", it is added to it.
+    - save_deltak: bool, default: True, whether to include knorms and deltak inside the save file.
+    
+  method load(filename)
+  
+    Function that loads a pickled PowerSpectrum object into current instance.
+    
+    - filename: str, filename of the file to be loaded.
+    
+  method computeKbins()
+  
+    Function that returns the center of the bins in Fourier space to be used to compute the power spectrum.
+    
+    returns:
+    - kbins: numpy.ndarray, array containing the bin centers.
+    
+  method computeMAS()
+  
+    Function that performs parallel computation of the mass assignment and interpolates the density in real space, delta(r), onto the regular grid.
+    
+    returns:
+    - deltar: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the interpolated values of delta(r).
+    
+  method computeFFT(deltar)
+  
+    Function that computes the Fast Fourier Transform of delta(r).
+    
+    - deltar: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the interpolated values of delta(r).
+    
+    returns:
+    - detalk: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the FFT of delta(r), normalized to the grid spacing.
+    
+  method deconvolve(deltak)
+  
+    Function that deconvolves the effects of the window function resulting from the MAS interpolation procedure.
+    
+    - deltak: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the Fourier transform of delta(r), normalized to the grid spacing.
+    
+    returns:
+    - knorms: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the norm of the Fourier modes of each grid cell.
+    - deltak: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of delta(r).
+    
+  method computePk(knorms, deltak1, deltak2)
+  
+    Function that computed the power spectrum P(k), the associated modes k, and the associeated error.
+    
+    - knorms: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the norm of the Fourier modes of each grid cell.
+    - deltak1: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of delta(r).
+    - deltak2: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of delta(r).
+    NOTE: deltak1 must be equal to deltak2 if the objective is to obtain an auto power spectrum, for cross power spectra use different deltak1 and deltak2.
+    
+    returns:
+    - k: numpy.ndarray, array containing the norm of the Fourier modes of the computed power spectrum P(k).
+    - Pk: numpy.ndarray, array containing the power spectrum values P(k) (not corrected by shot noise).
+    - sigmaPk: numpy.ndarray, array containig the error on each power spectrim value.
+    - shotnoise: float, shot noise to be subtracted to P(k).
+    
+  method computeAutoPk()
+  
+    Convenient wrapper to compute an auto power spectrum.
+    
+  method computeCrossPk(obj1, obj2)
+  
+    Convenient wrapper to compute a cross power spectrum.
+    
+    - obj1: PowerSpectrum, an instance of PowerSpectrum (must have knorms and deltak attributes)
+    - obj2: PowerSpectrum, another instance of PowerSpectrum (must have knorms and deltak attributes)
+    
+  method computeAvrgPk(sigma_type, **PowerSpectrumObjects):
+  
+    Convenient wrapper to compute an average power spectrum.
+    
+    - sigma_type: str, default: "var", type of error to be associated to the average power spectrum. if "var", outputs the standard deviation in sigmaPk. If "cov", outputs the covariance in sigmaPk.
+    - PowerSpectrumObjects: dict, any number of PowerSpectrum instances to be averaged (must have k and Pk attributes).
+    
+# MAS_worker.py
+
+MPI worker used by PowerSpectrum().computeMAS() when MPI is enabled.
+
+# deconvolve_worker.py
+
+MPI worker used by PowerSpectrum().deconvolve() when MPI is enabled.
+
+# Pk_worker.py
+
+MPI worker used by PowerSpectrum().computePk() when MPI is enabled.
+
+# misc.py
+
+Miscellaneous functions.
+
+function printflush(string, rank)
+
+  Wrapper for print function that prints a timestamp, cpu rank and caller together with the string. It also flushes stdout to force consistent printing order.
+  
+  - string: str, string to be printed.
+  - rank: str or int, default="ROOT", rank of the processor calling the function.
+  
+function _warning(message, category, filename, lineno, file, line)
+
+  Wrapper for printing nicer looking warnings (see warnings module)
+  
+function assignDoubleGrid(r, L, Ng)
+
+  Function that computes the mass assignment scheme weights for given particle at position r.
+  
+  - r: numpy.ndarrya, (1, 3)-shaped array containing the x, y, z coordinates of the particle inside the box.
+  - L: float, length of side the simulation box.
+  - Ng: int, number of grid points per side.
+  
+  returns:
+  - W_real: list, list of lenght MAS_order^3 containing the values of the weights for the cells around the particle.
+  - idx: list, list of lenght MAS_order^3 containing tuples of indexes associated with the cells around the particle.
+  
+function assignIndex(v, Nv)
+
+  Function that returns the indexes of the cells around a particle.
+  
+  - v: numpy.ndarray, (1, 3)-shaped array containing the indexes of the cell containing the particle.
+  - Nv: numpy.ndarray, (1, 3)-shaped array containing the number of grid points per side.
+  
+  returns:
+  - idx: numpy.ndarray, (3, 4)-shaped array containing the index values associated with the cells around the particle.
+  
+function assignWeights2(v)
+
+  Function that returns the weights associated with a particle.
+  
+  - v: numpy.ndarray, (1, 3)-shaped array containing the indexes of the cell containing the particle.
+  
+  returns:
+  - w: numpy.ndarray, (3, 4)-shaped array containing the weights associated with the cells around the particle.
+  
+function computeDeconvolve(index, H, kf, kNyq)
+
+  Function that computes the norm of the Fourier mode and value of the window function associated with it for a give index of a cell in the grid.
+  
+  - index: iterable, tuple or other iterable of 3 integers that defines the indexes of a cell.
+  - H: float, grid spacing.
+  - kf: float, fundamental Fourier mode.
+  - kNyq: float, Nyquist mode.
+  
+  returns:
+  - knorm: float, the norm of the Fourier mode.
+  - Wk: float, the value of the window function (equal to inf if knorm>kNyq).
+  
+function computeSinglePk(k, knorms, deltak1, deltak2, L, Ng, kf):
+
+  Function that computes a single Fourier mode, power spectrum value and error for a given bin center in Fourier space.
+  
+  - k: float, bin center in Fourier space.
+  - knorms: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the norm of the Fourier modes of each grid cell.
+  - deltak1: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of delta(r).
+  - deltak2: numpy.ndarray, (Ng, Ng, Ng)-shaped array containing the deconvolved Fourier transform of delta(r).
+  - L: float, length of side the simulation box.
+  - Ng: int, number of grid points per side.
+  - kf: float, fundamental Fourier mode.
+  NOTE: deltak1 must be equal to deltak2 if the objective is to obtain an auto power spectrum, for cross power spectra use different deltak1 and deltak2.
