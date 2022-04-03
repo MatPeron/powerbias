@@ -1,10 +1,13 @@
+# OPTIONAL: write any string that describes the source the power spectrum/bias refers to (useful for reference)
+description: Dark matter component of EAGLE at z=0. 5% subset of the total DM catalog.
+
 System_parameters:
     # Number of processors to be used in parallel computation (-1 for all processors available)
     nproc: -1
 
 Pk_parameters:
-    # OPTIONAL: write any string that describes the source the power spectrum refers to
-    source_type: brief description of the source type
+    # Path of the simulation file containing the catalog
+    simfile: /mnt/mergerSIM/GalaxyProp/CompleteSample_HostProperties_mobse_vcm_2021_GW_BBHs_merge28.h5
     # Side length of the simulation box in [h^-1 Mpc]
     L: 67.77
     # Number of grid points per side
@@ -25,4 +28,25 @@ Pk_parameters:
 MCMC_parameters:
     # Random number generator seed for MCMC sampler
     seed: 123456789
-    # WRITE HERE ALL THE VARIABLES FOR MCMC SAMPLER
+    # Number of dimensions of the parameter space to be sampled (for the default model is 2, parameters b1 and b2)
+    Ndim: 2
+    # Number of walkers (set at 8 so we can have 4 walkers for each dimension in the default model)
+    Nwalkers: 8
+    # Number of steps the sampler has to compute
+    Nsteps: 500000
+    # Cosmological parameters and redshift (needed for CAMB to compute the linear matter power spectrum in order to solve the bias expansion terms wit fastPT)
+    # Mode at which to cut the power spectrum (generally the scale at which the 1-loop expansion fails)
+    kcut: 0.25
+    #  Initial guess on bias parameters from which MCMC sampler starts (the default 1-loop model used depends on b1 and b2, so this is a tuple of 2 values
+    initial_guess: 
+        # estimate from HOD model
+        - 1.369490057745804
+        - 0.34456413917872086
+    cosmo_pars:
+        z: 0 # redshift
+        Mnu: 0. # total neutrino mass
+        Omm: 0.307 # matter density parameter (baryon+DM)
+        Omb: 0.04825 # baryon density parameter
+        h: 0.6777 # reduced hubble constant
+        ns: 0.9611 # scalar spectral index
+        sigma8: 0.8288 # linear mass dispersion at 8 h^-1 Mpc

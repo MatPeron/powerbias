@@ -16,10 +16,11 @@ class PowerSpectrum:
     def __init__(self, **kwargs):
 
         self.use_mpi = False
-        self.filename = None
         self.nproc = -1
+        self.filename = None
         self.read_sim_func = None
         self.read_sim_args = None
+        self.preprocess = True
 
         self.L = None
         self.Ng = None
@@ -30,23 +31,6 @@ class PowerSpectrum:
         self.kf = None
         self.ks = None
         self.kNyq = None
-
-        try:
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-            self.H = self.L/self.Ng
-            self.Np = len(self.read_sim_func(self.filename,
-                                             **self.read_sim_args))
-            self.kf = 2*np.pi/self.L
-            self.ks = 2*np.pi/self.H
-            self.kNyq = np.pi/self.H
-
-            self._multiprocImports()
-
-        except:
-            warnings.warn("Parameters {} have been provided. Please set L, Ng, use_mpi and nproc for power spectrum computation (read_sim_func and read_sim_args are also required for auto power spectra). Use showParameters() for a list of parameters"
-                          "".format(", ".join(i for i in kwargs.keys()) if kwargs!={} else "None"))
 
         # da implementare
         self.MAS_order = 2
@@ -61,6 +45,23 @@ class PowerSpectrum:
         self.Pk = None
         self.sigmaPk = None
         self.shotnoise = None
+        
+        if kwargs!={}:
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+            self.H = self.L/self.Ng
+            self.kf = 2*np.pi/self.L
+            self.ks = 2*np.pi/self.H
+            self.kNyq = np.pi/self.H
+        
+            if self.preprocess:
+                self.preprocessCatalog()
+                
+            else:
+                self.Np = len(self.read_sim_func(self.filename, **self.read_sim_args))
+
+        self._multiprocImports()
 
     def _multiprocImports(self):
         
@@ -112,8 +113,9 @@ class PowerSpectrum:
         if filename[-4:]!=".pkl":
             filename += ".pkl"
 
-        with open("{}.pkl".format(filename), "wb") as f:
+        with open("{}".format(filename), "wb") as f:
             save_data = {k: v for k, v in self.__dict__.items() if k not in not_to_be_saved}
+            save_data.update({k: None for k in not_to_be_saved})
             pickle.dump(save_data, f, pickle.HIGHEST_PROTOCOL)
 
     def load(self, filename):
@@ -121,6 +123,16 @@ class PowerSpectrum:
         with open(filename, 'rb') as f:
             self.__dict__ = pickle.load(f)
 
+    def preprocessCatalog(self):
+        
+        positions = self.read_sim_func(self.filename, **self.read_sim_args)
+        np.save("pos_tmp.npy", positions)
+        
+        self.filename = "pos_tmp.npy"
+        self.read_sim_func = lambda file: np.load(file)
+        self.read_sim_args = {}
+        self.Np = len(positions)
+    
     def computeKbins(self):
 
         return np.arange(1.5*self.kf, self.kNyq//self.kf*self.kf, self.kf)
@@ -145,8 +157,8 @@ class PowerSpectrum:
                     stop = start+n+1
 
                 else:
-                   start = i*n+r
-                   stop = start+n
+                    start = i*n+r
+                    stop = start+n
 
                 local_pos = self.read_sim_func(self.filename, **self.read_sim_args)[start:stop].astype(float)
                 comm.Send(local_pos, dest=i, tag=42)
@@ -187,6 +199,9 @@ class PowerSpectrum:
             deltar = rho/self.Np*self.L**3-1
             
             pool.terminate()
+            
+        if self.preprocess:
+            sp.run(["rm", "pos_tmp.npy"])
 
         return deltar
 
@@ -258,7 +273,7 @@ class PowerSpectrum:
         kbins = self.computeKbins()
 
         if self.use_mpi:
-            misc.printflush("starting P(k) computation in multiprocessing mode")
+            misc.printflush("starting P(k) computation in MPI mode")
             comm = MPI.COMM_SELF.Spawn(sys.executable,
                                        args=["Pk_worker.py"],
                                        maxprocs=self.nproc)
@@ -302,7 +317,7 @@ class PowerSpectrum:
             
         else:
             pool = mp.Pool(self.nproc)
-            chunksize = self._computeChunkSize(counts.size)
+            chunksize = self._computeChunkSize(kbins.size)
             
             ks, Pks, sigmaPks = [], [], []
             misc.printflush("starting P(k) computation in multiprocessing mode")

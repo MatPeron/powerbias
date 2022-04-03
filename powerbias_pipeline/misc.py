@@ -111,3 +111,24 @@ def computeSinglePk(k, knorms, deltak1, deltak2, L, Ng, kf):
     sigmaPk = np.sqrt(sigmaPk)/(len(Pks)-1) if len(Pks)>1 else 0
 
     return singlek, meanPk, sigmaPk
+
+def logNormLikelihood(pars, y, yerr, model, mask):
+    
+    b1, b2 = pars
+    model = model(b1, b2)
+    sigma2 = yerr**2
+    return -0.5*np.sum(((y-model)**2/sigma2+np.log(2*np.pi*sigma2))[mask])
+    
+def logUniPrior(pars):
+    
+    b1, b2 = pars
+    if 0<b1<100 and -10<b2<5000:
+        return 0
+    return -np.inf
+    
+def logPosterior(pars, y, yerr, model, mask):
+    
+    lp = logUniPrior(pars)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp+logNormLikelihood(pars, y, yerr, model, mask)
