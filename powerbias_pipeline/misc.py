@@ -1,7 +1,6 @@
 import numpy as np
 import sys
 import time
-import warnings
 
 def printflush(string, rank="ROOT"):
 
@@ -12,14 +11,6 @@ def printflush(string, rank="ROOT"):
     t = time.time()
     print("[{:.0f}] cpu{}//{}: {}".format(t, rank, caller, string))
     sys.stdout.flush()
-    
-def _warning(message,
-             category = UserWarning,
-             filename = "",
-             lineno = -1,
-             file=None,
-             line=None):
-    printflush("WARNING: {}".format(message))
 
 nintp = 2
 nintph = 1

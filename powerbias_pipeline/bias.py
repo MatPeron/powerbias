@@ -1,14 +1,24 @@
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import CubicSpline
+import matplotlib.pyplot as plt
 import fastpt as fpt
 import camb
 import emcee
 import misc
 import warnings
 import pickle
+import corner
 
-warnings.showwarning = misc._warning
+def _warning(message,
+             category = UserWarning,
+             filename = "",
+             lineno = -1,
+             file=None,
+             line=None):
+    misc.printflush("WARNING: {}".format(message))
+
+warnings.showwarning = _warning
 
 class BiasSampler:
     
@@ -57,17 +67,97 @@ class BiasSampler:
 
             print(string)
             
-    def save(self, filename):
+    def save(self, filename, save_plot=False):
 
         not_to_be_saved = ["powerspectrum_obj"]
             
         if filename[-4:]!=".pkl":
             filename += ".pkl"
+            
+        if save_plot:
+            self.cornerPlot(filename)
+            self.pkPlot(filename)
 
         with open("{}".format(filename), "wb") as f:
             save_data = {k: v for k, v in self.__dict__.items() if k not in not_to_be_saved}
+            save_data.update({k: None for k in not_to_be_saved})
             pickle.dump(save_data, f, pickle.HIGHEST_PROTOCOL)
+            
+    def load(self, filename):
+
+        with open(filename, 'rb') as f:
+            self.__dict__ = pickle.load(f)
         
+    def cornerPlot(self, filename):
+        
+        if any(i in filename for i in [".png", ".jpg", ".gif", ".pdf"]):
+            pass
+        
+        else:
+            filename += "_corner.png"
+        
+        fig = corner.corner(self.samples, labels=[r"$b_1$", r"$b_2$"])
+        
+        axes = np.array(fig.axes).reshape((self.Ndim, self.Ndim))
+        for i in range(self.Ndim):
+            ax = axes[i, i]
+            ax.axvline(self.best[i], color="r")
+            ax.tick_params(axis="both", which='both', top=True, bottom=True, left=True, right=True, direction="in")
+            ax.tick_params(axis="both", which="major", length=10)
+            ax.tick_params(axis="both", which="minor", length=4)
+    
+        ax = axes[1, 0]
+        ax.axvline(self.best[0], color="r")
+        ax.axhline(self.best[1], color="r")
+        ax.plot(self.initial_guess[0], self.initial_guess[1], marker="d", ls="none", color="r", markerfacecolor="w")
+        
+        ax.tick_params(axis="both", which='both', top=True, bottom=True, left=True, right=True, direction="in")
+        ax.tick_params(axis="both", which="major", length=10)
+        ax.tick_params(axis="both", which="minor", length=4)
+
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0, wspace=0)
+        plt.savefig(filename, dpi=200)
+        
+    def pkPlot(self, filename):
+        
+        if any(i in filename for i in [".png", ".jpg", ".gif", ".pdf"]):
+            pass
+        
+        else:
+            filename += "_plot.png"
+        
+        fig = plt.figure()
+        
+        ax = fig.add_subplot(111)
+        ax.errorbar(self.powerspectrum_obj.k,
+                    self.powerspectrum_obj.Pk-self.powerspectrum_obj.shotnoise,
+                    yerr=self.powerspectrum_obj.sigmaPk, marker="o", ms=3, ls="none")
+        
+        model = self.compute1loopModel()
+        ax.plot(self.powerspectrum_obj.k, model(*self.best), color="k")
+        b1s, b2s = self.samples[:, 0], self.samples[:, 1]
+        b1s, b2s = b1s[np.logical_and(b1s>self.percs[0, 0], b1s<=self.percs[1, 0])], \
+                   b2s[np.logical_and(b2s>self.percs[0, 1], b2s<=self.percs[1, 1])]
+        for i in range(100):
+            b1 = np.random.choice(b1s)
+            b2 = np.random.choice(b2s)
+            ax.plot(self.powerspectrum_obj.k, model(b1, b2), color="0.7", lw=0.3, alpha=0.5)
+            
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel(r"$k$ [$h\,$Mpc$^{-1}$]")
+        ax.set_ylabel(r"$P(k)$ [$h^{-3}\,$Mpc$^3$]")
+        
+        ax.tick_params(axis="both", which='both', top=True, bottom=True, left=True, right=True, direction="in")
+        ax.tick_params(axis="both", which="major", length=10)
+        ax.tick_params(axis="both", which="minor", length=4)
+
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0, wspace=0)
+        
+        fig.savefig(filename, dpi=200)
+    
     def compute1loopModel(self):
         
         # linear matter power spectrum with camb

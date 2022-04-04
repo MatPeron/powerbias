@@ -1,6 +1,7 @@
 from scipy import fft
 from tqdm import tqdm
 from time import time
+import matplotlib.pyplot as plt
 import numpy as np
 import subprocess as sp
 import pickle
@@ -9,7 +10,15 @@ import os
 import sys
 import misc
 
-warnings.showwarning = misc._warning
+def _warning(message,
+             category = UserWarning,
+             filename = "",
+             lineno = -1,
+             file=None,
+             line=None):
+    misc.printflush("WARNING: {}".format(message))
+
+warnings.showwarning = _warning
 
 class PowerSpectrum:
 
@@ -55,11 +64,14 @@ class PowerSpectrum:
             self.ks = 2*np.pi/self.H
             self.kNyq = np.pi/self.H
         
-            if self.preprocess:
-                self.preprocessCatalog()
-                
-            else:
-                self.Np = len(self.read_sim_func(self.filename, **self.read_sim_args))
+            try:
+                if self.preprocess:
+                    self.preprocessCatalog()
+
+                else:
+                    self.Np = len(self.read_sim_func(self.filename, **self.read_sim_args))
+            except:
+                warnings.warn("Could not load catalog because arguments read_sim_func, read_sim_args or filename were not specifies. This may result in an error if computing an auto P(k)")
 
         self._multiprocImports()
 
@@ -103,12 +115,15 @@ class PowerSpectrum:
 
             print(string)
 
-    def save(self, filename, save_deltak=True):
+    def save(self, filename, save_deltak=True, save_plot=False):
 
         not_to_be_saved = ["use_mpi", "nproc", "read_sim_func", "read_sim_args"]
 
         if not save_deltak:
             not_to_be_saved.extend(["knorms", "deltak"])
+            
+        if save_plot:
+            self.pkPlot(filename)
             
         if filename[-4:]!=".pkl":
             filename += ".pkl"
@@ -132,6 +147,32 @@ class PowerSpectrum:
         self.read_sim_func = lambda file: np.load(file)
         self.read_sim_args = {}
         self.Np = len(positions)
+    
+    def pkPlot(self, filename):
+        
+        if any(i in filename for i in [".png", ".jpg", ".gif", ".pdf"]):
+            pass
+        
+        else:
+            filename += "_plot.png"
+        
+        fig = plt.figure()
+        
+        ax = fig.add_subplot(111)
+        ax.errorbar(self.k, self.Pk-self.shotnoise, yerr=self.sigmaPk, marker="o", ms=3, ls="none")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel(r"$k$ [$h\,$Mpc$^{-1}$]")
+        ax.set_ylabel(r"$P(k)$ [$h^{-3}\,$Mpc$^3$]")
+        
+        ax.tick_params(axis="both", which='both', top=True, bottom=True, left=True, right=True, direction="in")
+        ax.tick_params(axis="both", which="major", length=10)
+        ax.tick_params(axis="both", which="minor", length=4)
+
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0, wspace=0)
+        
+        fig.savefig(filename, dpi=200)
     
     def computeKbins(self):
 
