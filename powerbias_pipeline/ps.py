@@ -443,11 +443,12 @@ class PowerSpectrum:
             raise ValueError("The Fourier modes of the two power spectra differ by more than 0.1%. Make sure that the power spectra have been computed on boxes of the same size.")
         
         misc.printflush("Computing cross power spectrum...")
-        T = time.time()
+        T = time()
         
-        self.compute_Pk(obj1.knorms, obj1.deltak, obj2.deltak)
+        self.Np = np.inf # needed to give 0 shotnoise
+        self.computePk(obj1.knorms, obj1.deltak, obj2.deltak)
             
-        T = time.time()-T
+        T = time()-T
         print("Done. Total run time {:.0f}m{:.0f}s".format(T//60, T%60))
               
     def computeAvrgPk(self, sigma_type="var", **PowerSpectrumObjects):
@@ -455,7 +456,7 @@ class PowerSpectrum:
         self.is_avrg = True
         
         misc.printflush("Computing average power spectrum of {}...".format(len(PowerSpectrumObjects)))
-        T = time.time()
+        T = time()
         
         n = 0 
         for key, obj in PowerSpectrumObjects.items():
@@ -464,7 +465,7 @@ class PowerSpectrum:
                                 
             if n==0:
                 self.k = obj.k
-                self.Pk = obj.Pk
+                self.Pk = obj.Pk-obj.shotnoise
                 oldkey = key
                 n += 1
                 
@@ -484,7 +485,7 @@ class PowerSpectrum:
                                          "parameter Pk in {} has shape {}".format(key, obj.Pk.shape, oldkey, self.Pk.shape))
                                                    
                     self.k += obj.k
-                    self.Pk += obj.Pk
+                    self.Pk += obj.Pk-obj.shotnoise
                     oldkey = key
                     n += 1
                     
@@ -497,7 +498,7 @@ class PowerSpectrum:
         if sigma_type=="var":
             self.sigmaPk = np.zeros(self.Pk.size)
             for key, obj in PowerSpectrumObjects.items():
-                self.sigmaPk += (obj.Pk-self.Pk)**2
+                self.sigmaPk += (obj.Pk-obj.shotnoise-self.Pk)**2
             
             self.sigmaPk = np.sqrt(self.sigmaPk)/(n-1)
             
@@ -506,9 +507,9 @@ class PowerSpectrum:
             for row in range(self.Pk.size):
                 for col in range(row+1):
                     for key in kwargs:
-                        self.sigmaPk[row, col] += (obj.Pk[row]-self.Pk[row])*(obj.Pk[col]-self.Pk[col])/(n-1)
+                        self.sigmaPk[row, col] += (obj.Pk[row]-obj.shotnoise-self.Pk[row])*(obj.Pk[col]-obj.shotnoise-self.Pk[col])/(n-1)
                         
                 self.pars["sigmaPk"][col, row] = self.pars["sigmaPk"][row, col]
             
-        T = time.time()-T
+        T = time()-T
         print("Done. Total run time {:.0f}m{:.0f}s".format(T//60, T%60))    

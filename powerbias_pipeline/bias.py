@@ -24,6 +24,8 @@ class BiasSampler:
     
     def __init__(self, **kwargs):
         
+        self.force_Nsteps = False
+        
         self.powerspectrum_obj = None
         self.kcut = None         
         
@@ -127,22 +129,25 @@ class BiasSampler:
         else:
             filename += "_plot.png"
         
+
+        mask = self.powerspectrum_obj.k<=self.kcut
+
         fig = plt.figure()
         
         ax = fig.add_subplot(111)
-        ax.errorbar(self.powerspectrum_obj.k,
-                    self.powerspectrum_obj.Pk-self.powerspectrum_obj.shotnoise,
-                    yerr=self.powerspectrum_obj.sigmaPk, marker="o", ms=3, ls="none")
+        ax.errorbar(self.powerspectrum_obj.k[mask],
+                    self.powerspectrum_obj.Pk[mask]-self.powerspectrum_obj.shotnoise,
+                    yerr=self.powerspectrum_obj.sigmaPk[mask], marker="o", ms=3, ls="none")
         
         model = self.compute1loopModel()
-        ax.plot(self.powerspectrum_obj.k, model(*self.best), color="k")
+        ax.plot(self.powerspectrum_obj.k[mask], model(*self.best)[mask], color="k")
         b1s, b2s = self.samples[:, 0], self.samples[:, 1]
         b1s, b2s = b1s[np.logical_and(b1s>self.percs[0, 0], b1s<=self.percs[1, 0])], \
                    b2s[np.logical_and(b2s>self.percs[0, 1], b2s<=self.percs[1, 1])]
         for i in range(100):
             b1 = np.random.choice(b1s)
             b2 = np.random.choice(b2s)
-            ax.plot(self.powerspectrum_obj.k, model(b1, b2), color="0.7", lw=0.3, alpha=0.5)
+            ax.plot(self.powerspectrum_obj.k[mask], model(b1, b2)[mask], color="0.7", lw=0.3, alpha=0.5)
             
         ax.set_xscale("log")
         ax.set_yscale("log")
@@ -226,13 +231,7 @@ class BiasSampler:
             posterior_args = (self.powerspectrum_obj.Pk-self.powerspectrum_obj.shotnoise,
                               self.powerspectrum_obj.sigmaPk,
                               self.compute1loopModel(),
-                              mask)
-        
-        sampler = emcee.EnsembleSampler(self.Nwalkers,
-                                        self.Ndim,
-                                        posterior,
-                                        args=posterior_args)
-        
+                              mask)        
         
         initial_guess = np.asarray(self.initial_guess)
         
@@ -248,12 +247,47 @@ class BiasSampler:
                         bounds=[(0, 100), (-10, 5000)])
         misc.printflush("{} -- optimized guess -> {}".format(initial_guess, soln.x))
         initial_guess = soln.x
+        
+        sampler = emcee.EnsembleSampler(self.Nwalkers,
+                                        self.Ndim,
+                                        posterior,
+                                        args=posterior_args)
 
-        misc.printflush("starting sampler with {} walkers for {} steps".format(self.Nwalkers, self.Nsteps))
-        sampler.run_mcmc(initial_guess+1e-3*np.random.randn(self.Nwalkers, self.Ndim),
-                         self.Nsteps,
-                         progress=True,
-                         tune=True)
+        misc.printflush("starting sampler with {} walkers for {} steps maximum".format(self.Nwalkers, self.Nsteps))
+        
+        ###
+        
+        index = 0
+        autocorr = np.empty(self.Nsteps)
+        old_tau = np.inf
+
+        for sample in sampler.sample(initial_guess+1e-3*np.random.randn(self.Nwalkers, self.Ndim),
+                                     iterations=self.Nsteps,
+                                     progress=True,
+                                     tune=True):
+            if self.force_Nsteps:
+                continue
+                
+            # Only check convergence every 100 steps
+            if sampler.iteration % 100:
+                continue
+
+            # Compute the autocorrelation time so far
+            # Using tol=0 means that we'll always get an estimate even
+            # if it isn't trustworthy
+            tau = sampler.get_autocorr_time(tol=0)
+            autocorr[index] = np.mean(tau)
+            index += 1
+
+            # Check convergence
+            converged = np.all(tau * 100 < sampler.iteration)
+            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+            if converged:
+                break
+            
+            old_tau = tau
+        
+        ###
         
         self.tau = sampler.get_autocorr_time()
         self.burnin = int(2 * np.max(self.tau))

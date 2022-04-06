@@ -6,6 +6,10 @@ import ps
 import misc
 import yaml
 import bias
+import warnings
+
+user = sp.run(["echo", "$USER"], capture_output=True).stdout.decode("utf-8")
+group = sp.run(["id", "-gn", user], capture_output=True).stdout.decode("utf-8")
 
 def _warning(message,
              category = UserWarning,
@@ -25,7 +29,8 @@ parser = ap.ArgumentParser(description="Computes the Power Spectrum P(k) of a si
                                        "    python3 run.py /path/to/init_file autopk\n"
                                        "\n"
                                        "To compute cross P(k):\n"
-                                       "    python3 run.py /path/to/init_file crosspk /path/to/pk_file1 /path/to/pk_file2"
+                                       "    python3 run.py /path/to/init_file crosspk /path/to/pk_file1 /path/to/pk_file2\n"
+                                       "\n"
                                        "To compute P(k) and bias:\n"
                                        "    python3 run.py /path/to/init_file (autopk/crosspk [args])  --do-bias\n"
                                        "\n"
@@ -48,7 +53,7 @@ apk_subparser.add_argument("--do-bias",
                            help = "specify to compute bias")
 
 # sub-command to compute cross P(k) and (optionally) the bias
-cpk_subparser = subparsers.add_parser("autopk", help = "specify to compute cross P(k)")
+cpk_subparser = subparsers.add_parser("crosspk", help = "specify to compute cross P(k)")
 cpk_subparser.add_argument("pk_file1",
                            metavar="/path/to/pk_file1",
                            help="path to first auto P(k) file")
@@ -87,7 +92,7 @@ if args.command=="autopk":
     do_bias = args.do_bias
         
     # create temporary file in cwd to avoid import problems, and import readSim function
-    sp.run(["cp", init["Pk_parameters"]["read_sim_func"]["file_path"], "./tmp.py"])
+    sp.run(["sudo", "cp", init["Pk_parameters"]["read_sim_func"]["file_path"], "./tmp.py"])
     from tmp import readSim
     
     # prepare parameters for P(k) computation
@@ -97,7 +102,8 @@ if args.command=="autopk":
                  "read_sim_args": init["Pk_parameters"]["read_sim_func"]["args"],
                  "nproc": init["System_parameters"]["nproc"],
                  "use_mpi": use_mpi,
-                 "filename": init["Pk_parameters"]["simfile"]}
+                 "filename": init["Pk_parameters"]["simfile"],+
+                 "preprocess": init["System_parameters"]["preprocess"]}
 
     # create power spectrum object and initialize the parameters
     pk = ps.PowerSpectrum(**pk_params)
@@ -106,7 +112,7 @@ if args.command=="autopk":
     pk.computeAutoPk()
     
     # delete temporary files
-    sp.run(["rm", "tmp.py"])
+    sp.run(["sudo", "rm", "tmp.py"])
     
     if do_bias:
         # prepare parameters for bias computation
@@ -116,17 +122,20 @@ if args.command=="autopk":
                        "Ndim": init["MCMC_parameters"]["Ndim"],
                        "Nwalkers": init["MCMC_parameters"]["Nwalkers"],
                        "Nsteps": init["MCMC_parameters"]["Nsteps"],
-                       "initial_guess": init["MCMC_parameters"]["initial_guess"]}
+                       "initial_guess": init["MCMC_parameters"]["initial_guess"],
+                       "force_Nsteps": init["System_parameters"]["force_Nsteps"]}
         bias_params.update(init["MCMC_parameters"]["cosmo_pars"])
         
         bs = bias.BiasSampler(**bias_params)
         bs.fit()
     
     out_path += "_POWERBIAS_autopk_{}_{}/".format("bias" if do_bias else "nobias", strftime("%Y%m%d%H%M"))
-    sp.run(["mkdir", out_path])
+    sp.run(["sudo", "mkdir", out_path])
+    sp.run(["sudo", "chmod", "775", out_path])
+    sp.run(["sudo", "chown", "{}:{}".format(user, group), out_path]) #cambia con user:usergroup
     
     # save copy of init_file in out_path
-    sp.run(["cp", init_file, out_path])
+    sp.run(["sudo", "cp", init_file, out_path])
     # save power spectrum in out_path
     pk.save(out_path+"PowerSpectrumObj", save_plot=True)
     # save bias posterior if --do-bias flag has been called
@@ -164,19 +173,22 @@ elif args.command=="crosspk":
                        "Ndim": init["MCMC_parameters"]["Ndim"],
                        "Nwalkers": init["MCMC_parameters"]["Nwalkers"],
                        "Nsteps": init["MCMC_parameters"]["Nsteps"],
-                       "initial_guess": init["MCMC_parameters"]["initial_guess"]}
+                       "initial_guess": init["MCMC_parameters"]["initial_guess"],
+                       "force_Nsteps": init["System_parameters"]["force_Nsteps"]}
         bias_params.update(init["MCMC_parameters"]["cosmo_pars"])
         
         bs = bias.BiasSampler(**bias_params)
         bs.fit()
     
     out_path += "_POWERBIAS_crosspk_{}_{}/".format("bias" if do_bias else "nobias", strftime("%Y%m%d%H%M"))
-    sp.run(["mkdir", out_path])
+    sp.run(["sudo", "mkdir", out_path])
+    sp.run(["sudo", "chmod", "775", out_path])
+    sp.run(["sudo", "chown", "{}:{}".format(user, group), out_path])
     
     # save copy of init_file in out_path
-    sp.run(["cp", init_file, out_path])
+    sp.run(["sudo", "cp", init_file, out_path])
     # save power spectrum in out_path
-    pk.save(out_path+"PowerSpectrumObj", save_plot=True)
+    crosspk.save(out_path+"PowerSpectrumObj", save_plot=True)
     # save bias posterior if --do-bias flag has been called
     bs.save(out_path+"BiasObj", save_plot=True) if do_bias else None
     
@@ -204,7 +216,7 @@ elif args.command=="load":
     out_path += "/".join(pk_file.split("/")[:-1])+"/"
     
     # save copy of init_file in out_path
-    sp.run(["cp", init_file, out_path])
+    sp.run(["sudo", "cp", init_file, out_path])
     # save bias posterior
     bs.save(out_path+"BiasObj", save_plot=True)
     
