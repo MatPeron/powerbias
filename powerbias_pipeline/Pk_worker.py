@@ -1,8 +1,7 @@
-import subprocess as sp
 import numpy as np
 from mpi4py import MPI
 import pickle
-import misc
+import functions
 
 # initialize MPI and get number of processors and processor rank
 comm = MPI.Comm.Get_parent()
@@ -21,11 +20,11 @@ comm.Recv(nbins, source=0, tag=73)
 kbins = np.zeros(nbins[0])
 comm.Recv(kbins, source=0, tag=99)
 
-misc.printflush("starting P(k) computation on {} bins".format(nbins[0]), rank)
+functions.printflush("starting P(k) computation on {} bins".format(nbins[0]), rank)
 
 local_ks, local_Pks, local_sigmaPks = [], [], []
 for k in kbins:
-    singlek, singlePk, singlesigmaPk = misc.computeSinglePk(k, knorms, deltak1, deltak2, L, Ng, kf)
+    singlek, singlePk, singlesigmaPk = functions.computeSinglePk(k, knorms, deltak1, deltak2, L, Ng, kf)
 
     local_ks.append(singlek)
     local_Pks.append(singlePk)
@@ -35,7 +34,7 @@ local_ks = np.array(local_ks)
 local_Pks = np.array(local_Pks)
 local_sigmaPks = np.array(local_sigmaPks)
 
-misc.printflush("has completed P(k) computation, sending results to root", rank)
+functions.printflush("has completed P(k) computation, sending results to root", rank)
 
 comm.Send(local_ks, dest=0, tag=89)
 comm.Send(local_Pks, dest=0, tag=12)
