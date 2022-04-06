@@ -41,7 +41,7 @@ parser = ap.ArgumentParser(description="Computes the Power Spectrum P(k) of a si
 # initialization file containing the params
 parser.add_argument("init_file",
                     metavar="/path/to/init_file",
-                    help="path to initialization file")
+                    help="path to initialization file, must be a .yaml file")
 
 subparsers = parser.add_subparsers(help="sub-commands", dest="command")
 
@@ -55,10 +55,10 @@ apk_subparser.add_argument("--do-bias",
 cpk_subparser = subparsers.add_parser("crosspk", help = "specify to compute cross P(k)")
 cpk_subparser.add_argument("pk_file1",
                            metavar="/path/to/pk_file1",
-                           help="path to first auto P(k) file")
+                           help="path to first auto P(k) file, must be an instance of powerbias.PowerSpectrum stored in .pkl format")
 cpk_subparser.add_argument("pk_file2",
                            metavar="/path/to/pk_file2",
-                           help="path to second auto P(k) file")
+                           help="path to second auto P(k) file, must be an instance of powerbias.PowerSpectrum stored in .pkl format")
 cpk_subparser.add_argument("--do-bias",
                            action="store_true",
                            help = "specify to compute bias")
@@ -67,7 +67,7 @@ cpk_subparser.add_argument("--do-bias",
 bias_subparser = subparsers.add_parser("load", help = "specify to load P(k) and compute bias, requires P(k) file")
 bias_subparser.add_argument("pk_file",
                              metavar="/path/to/pk_file",
-                             help="path to P(k) file")
+                             help="path to P(k) file, must be an instance of powerbias.PowerSpectrum stored in .pkl format")
 
 args = parser.parse_args()
 
