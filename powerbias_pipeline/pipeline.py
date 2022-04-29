@@ -209,7 +209,8 @@ elif args.command=="load":
                    "Ndim": init["MCMC_parameters"]["Ndim"],
                    "Nwalkers": init["MCMC_parameters"]["Nwalkers"],
                    "Nsteps": init["MCMC_parameters"]["Nsteps"],
-                   "initial_guess": init["MCMC_parameters"]["initial_guess"]}
+                   "initial_guess": init["MCMC_parameters"]["initial_guess"],
+                   "force_Nsteps": init["System_parameters"]["force_Nsteps"]}
     bias_params.update(init["MCMC_parameters"]["cosmo_pars"])
 
     bs = pb.BiasSampler(**bias_params)
