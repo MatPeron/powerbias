@@ -220,7 +220,12 @@ elif args.command=="load":
     out_path += "/".join(pk_file.split("/")[:-1])+"/"
     
     # save copy of init_file in out_path
-    shutil.copy(init_file, out_path)
+    try:
+        shutil.copy(init_file, out_path)
+    
+    except shutil.SameFileError:
+        pass
+    
     # save bias posterior
     bs.save(out_path+"BiasObj", save_plot=True)
     
