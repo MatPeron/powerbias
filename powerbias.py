@@ -557,18 +557,18 @@ class PowerSpectrum:
                     
                 else:
                     try:
-                        if obj.k.shape!=self.k.shape:
+                        if obj.k.shape!=k.shape:
                             raise ValueError("Incompatible shapes:\n"
                                              "parameter k in {} has shape {}\n"
-                                             "parameter k in {} has shape {}".format(key, obj.k.shape, oldKey, self.k.shape))
+                                             "parameter k in {} has shape {}".format(key, obj.k.shape, oldKey, k.shape))
                         
-                        if not np.all(np.isclose(obj.k, self.k, rtol=1e-3)):
+                        if not np.all(np.isclose(obj.k, k, rtol=1e-3)):
                             raise ValueError("The Fourier modes of {} and {} differ by more than 0.1%. Make sure that the power spectra have been computed on boxes of the same size.".format(key, oldKey))
                         
-                        if obj.Pk.shape!=self.Pk.shape:
+                        if obj.Pk.shape!=Pk.shape:
                             raise ValueError("Incompatible shapes:\n"
                                              "parameter Pk in {} has shape {}\n"
-                                             "parameter Pk in {} has shape {}".format(key, obj.Pk.shape, oldKey, self.Pk.shape))
+                                             "parameter Pk in {} has shape {}".format(key, obj.Pk.shape, oldKey, Pk.shape))
                                                        
                         k = obj.k
                         Pk += obj.Pk-obj.shotNoise
