@@ -1,7 +1,7 @@
 # powerbias
 Pure Python code that computes power spectrum and/or bias from a simulated catalog of cosmological sources.
 Features:
- - fast interpolation of the density field in multiprocessing mode through the built-in python `multiprocessing` package or through openMP (suggested for large collections of simulated particles);
+ - fast interpolation of the density field in multiprocessing mode through the built-in python `multiprocessing` package or through MPI (suggested for large collections of simulated particles);
  - can be easily expanded to higher order interpolation schemes (currently supports order 2);
  - fast Fourier transform and deconvolution thanks to `numpy`;
  - defines a `PowerSpectrum` object to standardize operations;
