@@ -99,7 +99,7 @@ class PowerSpectrum:
     kNyq : float, optional
         Nyquist Fourier mode of the grid in units of [:math:`h\,`Mpc:math:`^{-1}`].
     isIntrl : bool, optional, default False
-        flag that specifies the power spectrum is interlaced.
+        flag to specify and/or enable interlacing of the power spectrum.
     isCross : bool, optional, default False
         flag that specifies the power spectrum is the cross-correlation between different sets of
         particles.
@@ -110,7 +110,7 @@ class PowerSpectrum:
     kNorms : ndarray, optional
         array of shape (`Ng`, `Ng`, `Ng`) containing the vector magnitude of the Fourier modes. The 
         vectors associated to each element is just the index of the element multiplied by `kf`.
-    deltak : comples ndarray, optional
+    deltak : complex ndarray, optional
         array of shape (`Ng`, `Ng`, `Ng`) containing the values of the Fourier-transformed overdensity 
         field of the particles.
     k : ndarray, optional
@@ -123,6 +123,64 @@ class PowerSpectrum:
         certain bins in Fourier space.
     shotNoise : float or ndarray, optional
         shot noise to be subtracted to `Pk`.
+        
+    Methods
+    -------
+    _setParameters(**kwargs)
+        called at initialization, sets the values of the class Attributes.
+    _necessaryImports()
+        called at initialization, imports packages necessary for the class but not necessary for the
+        whole module to function.
+    _conditionalImports()
+        called at initialization, imports packages based on the class Attributes.
+    computeChunkSize(size, factor=4)
+        gives an estimate of the optimal number of jobs-per-CPU to be used by the 
+        `multiprocessing.Pool.imap` method, called when `useMpi` is set to False.
+    showParameters()
+        prints the class Attributes to screen.
+    save(filename, saveDeltak=True, savePlot=False)
+        saves the current class instance to disk under `filename`. Also saves a plot of the power
+        spectrum if `savePlot` is set to True. Not all class Attributes are saved (`ignoreWarnings`,
+        `verbose`, `useMpi` and `nCPU` are set to None in the saved file), setting `saveDeltak` to 
+        False will set `kNorms` and `deltak` to None, as saving them can lead to large file size.
+    load(filename)
+        loads a class instance previously saved to disk under `filename` onto the current class 
+        instance.
+    pkPlot(filename)
+        saves a plot of the power spectrum to disk under `filename`.
+    computeKbins()
+        gives an array containing equally-spaced bin edges in Fourier space. The bins have a width of
+        `kf` and go up to `kNyq`.
+    computeMAS(catalog)
+        gives the number of particles interpolated onto a regular grid of shape (`Ng`, `Ng`, `Ng`)
+        according to weights given by a B-spline of order `MASOrder`.
+    computeDeltar(N)
+        gives the overdensity field given the interpolated number of particles `N`.
+    computeFFT(deltar)
+        gives the Fourier transform of the overdensity field `deltar`.
+    deconvolve(deltak, chunkSize=256)
+        gives the Fourier transform of the overdensity field, deconvolved to remove the effects of the
+        interpolation scheme.
+    normalizeDeltak(deltak)
+        gives the normalized Fourier transform of the overdensity field
+    computePk(self, kNorms, deltak1, deltak2, kbins=None, returnMask=False):
+        gives the power spectrum values, the square root of their gaussian variance and the respective
+        Fourier modes by averaging `kNorms` and the product of `deltak1` and `deltak2` inside each 
+        `kbin`. `computeKbins` is called if `kbins` is None.
+    computeShotNoise()
+        gives the shot noise to be subtracted to `Pk`.
+    storeResults(kNorms=None, deltak=None, k=None, Pk=None, sigmaPk=None, shotNoise=None)
+        stores the relevant power spectrum quantities inside the class instance.
+    computeAutoPk(catalog)
+        wraps all the operations needed to compute an auto-power spectrum directly from a `catalog`
+        of sources.
+    computeCrossPk(obj1, obj2)
+        wraps all the operations needed to compute a cross-power spectrum between two class instances.
+        this method should be called on a third instance that exists independendently of the two.
+    computeAvrgPk(sigmaType="var", **PowerSpectrumObjects)
+        wraps all the operations needed to compute an average power spectrum between multiple class 
+        instances. This method should be called on a third instance that exists independently of the
+        others.
     """
 
     def __init__(self, **kwargs):
@@ -220,7 +278,7 @@ class PowerSpectrum:
         else:
             from functions import fakePrintflush as pflush
         
-    def _computeChunkSize(self, size, factor=4):
+    def computeChunkSize(self, size, factor=4):
         
         # add code that accounts for memory usage
         
@@ -343,7 +401,7 @@ class PowerSpectrum:
         else:
             positions, counts = np.unique(catalog, return_counts=True, axis=0)
             pool = mp.Pool(self.nCPU)
-            chunkSize = self._computeChunkSize(counts.size)
+            chunkSize = self.computeChunkSize(counts.size)
             
             N = np.zeros((self.Ng, self.Ng, self.Ng))
             pflush("starting MAS in multiprocessing mode")
@@ -604,6 +662,48 @@ class PowerSpectrum:
 
 
 class FKPowerSpectrum(PowerSpectrum):
+
+    """
+    An object that represents all the properties of a power spectrum computed from the spatial
+    position of particles within the cubic box of a cosmological simulation. This object implements
+    the Feldman-Kaiser-Peacock (FKP) estimator for the power spectrum, and inherits most of the 
+    attributes and methods from the base `PowerSpectrum` class.
+    
+    Attributes
+    ----------
+    alpha : float, optional
+        number that represents the fraction of the density of the real catalog with respect to the
+        density of the synthetic catalog required by the FKP estimator
+    wPk : float, optional
+        value of the power spectrum to be used in the computation of the FKP's optimal weights.
+    isOptimized : bool, optional, default False
+        flag to specify and/or enable iterative optimization of the FKP's optimal weights.
+        
+    Methods
+    -------
+    estimateMinimumParticlesPerBin(alpha=0.1)
+        gives the minimum number of particles per grid-cell needed to compute the synthetic catalog.
+    generateSyntheticCatalog(n, chunkSize=256)
+        gives the synthetic catalog based on the number `n` of particles per grid-cell. `alpha` is
+        determined by calling this method.
+    computeOptimalWeights(Ns):
+        gives the optimal weights based on the interpolated syntetic catalog `Ns`.
+    computeFr(Nr, Ns, optWeights)
+        gives the FKP estimator in real space.
+    normalizeDeltak(deltak, Ns, optWeights)
+        gives the normalized Fourier transform of the FKP estimator.
+    computeShotNoise(Ns, optWeights)
+        gives the shot noise to be subtracted to `Pk`.
+    computeAutoPk(realCatalog, n=None, optimizeWeights=False)
+        wraps all the operations needed to compute an auto-power spectrum directly from a `realCatalog`
+        of sources and a synthetic catalog made with `n` particles per grid-cell (if None, `n` is set
+        automatically so that `alpha` is at most 0.1).
+    optimizeWeights(Nr, Ns, kbins=None, t=None, maxit=10, threshold=0.01)
+        wraps all the operations needed to optimize the weights of the estimator. The optimization is
+        performed iteratively inside each bin, for a maximum number of iterations per bin given by
+        `maxit` and up until consecutive iterations return values of the power spectrum that are less
+        than a percentage `threshold` apart.
+    """
 
     def __init__(self, **kwargs):
         
@@ -917,7 +1017,7 @@ class BiasSampler:
         plt.savefig(filename, dpi=200)
         plt.close()
     
-    def computeLinearMatterPower(self, mink=5e-3, maxk=10, nk=5000):
+    def computeLinearMatterPower(self, kMin=5e-3, kMax=10, Nk=5000):
         
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=self.h*100,
@@ -930,10 +1030,10 @@ class BiasSampler:
         pars.NonLinear = camb.model.NonLinear_none
         results = camb.get_results(pars)
         k, z, PkL = results.get_matter_power_spectrum(var1=2,
-                                                       var2=2,
-                                                       minkh=mink,
-                                                       maxkh=maxk,
-                                                       npoints=nk)
+                                                      var2=2,
+                                                      minkh=kMin,
+                                                      maxkh=kMax,
+                                                      npoints=Nk)
         
         return k, PkL[0]
     
@@ -1014,9 +1114,10 @@ class BiasSampler:
         
         tau = sampler.get_autocorr_time()
         pflush("chains are at least {:.0f} times the autocorrelation time ({:.0f}). If this value is more than 100, then it's a good indication that the posterior distribution has been extensively sampled. Further tests should be ran to ensure proper convergence".format(sampler.iteration/np.mean(tau), np.mean(tau)))
+        pflush("MCMC sampling complete")
         
-        burnIn = int(2 * np.max(self.tau))
-        thin = int(0.5 * np.min(self.tau))
+        burnIn = int(2 * np.max(tau))
+        thin = int(0.5 * np.min(tau))
         
         if returnFullChains:
             samples = sampler.get_chain(flat=True)
@@ -1027,8 +1128,6 @@ class BiasSampler:
             logProbSamples = sampler.get_log_prob(flat=True, discard=burnIn, thin=thin)
                                                   
         return tau, burnIn, thin, samples, logProbSamples
-        
-        pflush("MCMC sampling complete")
         
     @staticmethod
     def thinChains(samples, logProbSamples, burnIn, thin):
@@ -1070,9 +1169,9 @@ class BiasSampler:
             
             kL, PkL = self.computeLinearMatterPower()
             bOps = self.computeBiasOperators(kL, PkL,
-                                             mink=self.powerSpectrumObj.kf,
-                                             maxk=self.powerSpectrumObj.kNyq,
-                                             nk=300,
+                                             kMin=self.powerSpectrumObj.kf,
+                                             kMax=self.powerSpectrumObj.kNyq,
+                                             Nk=300,
                                              mask=mask)
             
             likelihood = functions.logNormLikelihood
