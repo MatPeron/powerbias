@@ -155,9 +155,10 @@ class PowerSpectrum:
         gives the number of particles interpolated onto a regular grid of shape (`Ng`, `Ng`, `Ng`)
         according to weights given by a B-spline of order `MASOrder`.
     computeDeltar(N)
-        gives the overdensity field given the interpolated number of particles `N`.
+        gives the overdensity field given the interpolated number of particles `N`. 
     computeFFT(deltar)
-        gives the Fourier transform of the overdensity field `deltar`.
+        gives the unnormalized Fourier transform of the overdensity field `deltar`. To normalize use
+        the 'normalizeDeltak' method.
     deconvolve(deltak, chunkSize=256)
         gives the Fourier transform of the overdensity field, deconvolved to remove the effects of the
         interpolation scheme.
@@ -426,7 +427,7 @@ class PowerSpectrum:
 
     def computeDeltar(self, N):
     
-        return N/self.Np*self.L**3-1
+        return N/self.H**3/self.Np*self.L**3-1
 
     def computeFFT(self, deltar):
 
@@ -466,7 +467,7 @@ class PowerSpectrum:
         
     def normalizeDeltak(self, deltak):
     
-        return deltak/self.L**(3/2)
+        return deltak/self.L**(3/2)*self.H**3
 
     def computePk(self, kNorms, deltak1, deltak2, kbins=None, returnMask=False):
     
