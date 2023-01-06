@@ -450,15 +450,15 @@ class PowerSpectrum:
         default = np.geterr()
         np.seterr(invalid="ignore")
         
-        chunkSize = Ng if Ng<chunkSize else chunkSize
-        chunks = Ng//chunkSize if Ng>chunkSize else 1
+        chunkSize = self.Ng if self.Ng<chunkSize else chunkSize
+        chunks = self.Ng//chunkSize if self.Ng>chunkSize else 1
         
         kNorms, Wk = np.empty(0), np.empty(0)
         for i in range(chunks**3):
             binArray = np.arange(i*chunkSize**3, (i+1)*chunkSize**3)
-            kVectors = np.c_[f(binArray//Ng**2, Ng//2),
-                             f((binArray%Ng**2)//Ng, Ng//2),
-                             f(binArray%Ng, Ng//2)]*kf
+            kVectors = np.c_[f(binArray//self.Ng**2, self.Ng//2),
+                             f((binArray%self.Ng**2)//self.Ng, self.Ng//2),
+                             f(binArray%self.Ng, self.Ng//2)]*self.kf
             WkVectors = np.sin(kVectors*self.H/2)/kVectors/self.H*2
             np.nan_to_num(WkVectors, nan=1, copy=False)
         
