@@ -358,6 +358,7 @@ class PowerSpectrum:
     def computeMAS(self, catalog):
 
         Np = len(catalog)
+        self.Np = Np
 
         if self.useMpi:
             pflush("starting MAS in MPI mode")
