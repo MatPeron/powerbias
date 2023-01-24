@@ -526,8 +526,8 @@ class PowerSpectrum:
         
     def computeAutoPk(self, catalog):
     
-        if self.L is None or self.Ng is None or self.Np is None:
-            raise ValueError("Auto-P(k) cannot be computed if parameters 'L', 'Ng' or 'Np' aren't set.")
+        if self.L is None or self.Ng is None:
+            raise ValueError("Auto-P(k) cannot be computed if parameters 'L' or 'Ng' aren't set.")
         
         pflush("Computing auto power spectrum...")
         
