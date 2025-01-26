@@ -1,5 +1,5 @@
 # powerbias
-Pure Python code that computes power spectrum and/or bias from a simulated catalog of cosmological sources.
+Pure Python code that I developed to complete my master thesis's work (the results of which have been published in [this paper](https://doi.org/10.1093/mnras/stae893)). It computes power spectrum and/or bias from a simulated catalog of cosmological sources.
 Features:
  - fast interpolation of the density field in multiprocessing mode through the built-in python `multiprocessing` package or through MPI (suggested for large collections of simulated particles);
  - can be easily expanded to higher order interpolation schemes (currently supports order 2);
@@ -11,8 +11,6 @@ Features:
  - can compute the Feldman-Kaiser-Peacock estimator and iteratively optimize its weights for high accuracy;
  - can perform interlacing to mitigate aliasing effects on high frequency modes;
  - can sample a user-defined posterior distribution on a generic power spectrum model for Bayesian inference.
-
-Documentation is currently being built.
 
 Requires the following packages:
  - `numpy`
